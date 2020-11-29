@@ -1,6 +1,7 @@
-/** @file simple_gain.c
+/** @file jack-ncurses-compressor-filter.c
  *
- * @brief Simple gain built by Eric Fontaine (CC0 2020) using jackaudio example program simple_client.c as starting point
+ * @brief Simple compressor & filter with makeup gain by Eric Fontaine (CC0 2020).
+ * used jackaudio example program simple_client.c as starting point
  */
 
 #include <stdio.h>
@@ -71,7 +72,7 @@ int
 main (int argc, char *argv[])
 {
 	const char **ports;
-	const char *client_name = "simple";
+	const char *client_name = "compressor-filter";
 	const char *server_name = NULL;
 	jack_options_t options = JackNullOption;
 	jack_status_t status;
