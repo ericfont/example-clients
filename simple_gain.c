@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <curses.h>
+#include <math.h>
 
 #include <jack/jack.h>
 
@@ -16,7 +17,8 @@ jack_port_t *input_port;
 jack_port_t *output_port;
 jack_client_t *client;
 
-float gain = .5f;
+float dBgain = 0.0f;
+float lineargain = 1.0f;
 
 /**
  * The process callback for this JACK application is called in a
@@ -37,7 +39,7 @@ process (jack_nframes_t nframes, void *arg)
 	int i;
 
 	for (i = 0; i < nframes; i++)
-		out[i] = in[i] * gain;
+		out[i] = in[i] * lineargain;
 
 	return 0;      
 }
@@ -166,23 +168,23 @@ main (int argc, char *argv[])
 
 	/* keep running until stopped by the user */
 	while (true) {
-		mvprintw( 1, 0, "gain %1.2f", gain);
+		mvprintw( 1, 0, "gain: %+1.2f dB", dBgain);
 		int keystroke = getch();
 		switch (keystroke) {
 
 			case KEY_UP:
-			gain += .1f;
+			dBgain += 1.0f;
 			break;
 
 			case KEY_DOWN:
-			gain -= .1f;
-			if (gain < 0.0f)
-				gain = 0.0f;
+			dBgain -= 1.0f;
 			break;
 		}
 			
-		if (gain > 1.0f)
-			mvprintw( 2, 0, " warning: gain exceeds 1...be careful of clipping!\n");
+		if (dBgain > 0.0f)
+			mvprintw( 2, 0, " warning: gain exceeds 0 dB...be careful of clipping!\n");
+
+		lineargain = pow(10, dBgain/20.0f); // linear gain = 10 ^ (dB/20)
 
 		clrtobot(); // clear rest of screen
 
