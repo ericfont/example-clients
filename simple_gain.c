@@ -8,12 +8,15 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
+#include <curses.h>
 
 #include <jack/jack.h>
 
 jack_port_t *input_port;
 jack_port_t *output_port;
 jack_client_t *client;
+
+float gain = .5f;
 
 /**
  * The process callback for this JACK application is called in a
@@ -32,7 +35,6 @@ process (jack_nframes_t nframes, void *arg)
 	out = jack_port_get_buffer (output_port, nframes);
 
 	int i;
-	float gain = .1f;
 
 	for (i = 0; i < nframes; i++)
 		out[i] = in[i] * gain;
@@ -153,9 +155,39 @@ main (int argc, char *argv[])
 
 	free (ports);
 
-	/* keep running until stopped by the user */
 
-	sleep (-1);
+	// ncurses setup
+	initscr(); // ncurses init terminal
+	cbreak; // only input one character at a time
+	noecho(); // disable echoing of typed keyboard input
+	keypad(stdscr, TRUE); // allow capture of special keystrokes, like arrow keys
+
+	mvprintw( 0, 0, "Keyboard Usage: UP/DOWN arrows to increase/decrease gain.");
+
+	/* keep running until stopped by the user */
+	while (true) {
+		mvprintw( 1, 0, "gain %1.2f", gain);
+		int keystroke = getch();
+		switch (keystroke) {
+
+			case KEY_UP:
+			gain += .1f;
+			break;
+
+			case KEY_DOWN:
+			gain -= .1f;
+			if (gain < 0.0f)
+				gain = 0.0f;
+			break;
+		}
+			
+		if (gain > 1.0f)
+			mvprintw( 2, 0, " warning: gain exceeds 1...be careful of clipping!\n");
+
+		clrtobot(); // clear rest of screen
+
+//		usleep (100000);
+	}
 
 	/* this is never reached but if the program
 	   had some other way to exit besides being killed,
