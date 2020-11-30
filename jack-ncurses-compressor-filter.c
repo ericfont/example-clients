@@ -18,17 +18,26 @@ jack_port_t *input_port;
 jack_port_t *output_port;
 jack_client_t *client;
 
-float dBmakeupgain = 0.0f; // user inputs gain in dB
-float linearmakeupgain = 1.0f; // automatically calculated
+float makeupGain_dB = 0.0f; // user inputs gain in dB
+float makeupGain = 1.0f; // automatically calculated
 
-float dBcompressorthreshold = -20.0f; // user input in dB
-float linearcompressorthreshold = 0.1f; // automatically calculated
+float compressorThreshold_dB = -20.0f; // user input in dB
+float compressorThreshold = 0.1f; // automatically calculated
 
-float compressorratio = 1.0f;
+float compressorRatio = 1.0f;
 
-float maxamplitude = 0.0f;
+float maxAmplitudeInput = 0.0f;
+float maxAmplitudeOutput = 0.0f;
 
-int maxrows, maxcols;
+int maxRows, maxCols;
+
+float compress(float absoluteValueInput)
+{
+	if (absoluteValueInput > compressorThreshold)
+		return compressorThreshold + (absoluteValueInput - compressorThreshold) / compressorRatio;
+	else
+		return absoluteValueInput;
+}
 
 /**
  * The process callback for this JACK application is called in a
@@ -46,13 +55,21 @@ process (jack_nframes_t nframes, void *arg)
 	int i;
 
 	for (i = 0; i < nframes; i++) {
-		if (in[i] < linearcompressorthreshold)
-			out[i] = in[i] * linearmakeupgain;
-		else
-			out[i] = (in[i] + (in[i] - linearcompressorthreshold) / compressorratio) * linearmakeupgain; // apply gain
 
-		if (fabs(in[i]) > maxamplitude)
-			maxamplitude = fabs(in[i]);
+		bool isNegative = in[i] < 0.0f;
+
+		float absoluteValue = fabs(in[i]);
+
+		if (absoluteValue > maxAmplitudeInput)
+			maxAmplitudeInput = absoluteValue;
+
+		float absoluteCompressed = compress(absoluteValue);
+		float absoluteCompressedGained = absoluteCompressed * makeupGain;
+
+		if (absoluteCompressedGained > maxAmplitudeOutput)
+			maxAmplitudeOutput = absoluteCompressedGained;
+
+		out[i] = isNegative ? -absoluteCompressedGained : absoluteCompressedGained;
 	}
 
 	return 0;      
@@ -68,6 +85,16 @@ jack_shutdown (void *arg)
 	exit (1);
 }
 
+
+void printbar( float amplitude, int columnsavailable)
+{
+		int nfullchars = (columnsavailable > 0) ? amplitude * (float) columnsavailable : 0;
+
+		int i;
+		for ( i=0; i < nfullchars; i++)
+			addch(ACS_CKBOARD);
+}
+
 int
 main (int argc, char *argv[])
 {
@@ -79,7 +106,6 @@ main (int argc, char *argv[])
 
 	// ncurses setup
 	initscr(); // ncurses init terminal
-	getmaxyx(stdscr, maxrows, maxcols);
 	cbreak; // only input one character at a time
 	noecho(); // disable echoing of typed keyboard input
 	keypad(stdscr, TRUE); // allow capture of special keystrokes, like arrow keys
@@ -184,79 +210,80 @@ main (int argc, char *argv[])
 	while (true) {
 		erase(); // clear screen
 
-		mvprintw( 0, 0, "%1.4f ", maxamplitude);
-		int nfullchars = maxamplitude  * (float) (maxcols - 6);
+		getmaxyx(stdscr, maxRows, maxCols);
 
-		int i;
-		for ( i=0; i < nfullchars; i++)
-			addch(ACS_CKBOARD);
+		mvprintw( 0, 0, "input amplitude:  %1.4f ", maxAmplitudeInput);
+		printbar( maxAmplitudeInput, maxCols - 24);
+		maxAmplitudeInput = 0.0f;
 
-		maxamplitude = 0.0f;
+		mvprintw( 1, 0, "output amplitude: %1.4f ", maxAmplitudeOutput);
+		printbar( maxAmplitudeOutput, maxCols - 24);
+		maxAmplitudeOutput = 0.0f;
 
-		mvprintw( 2, 0, "%+1.2f dB makeup gain (adjust with UP/DOWN)", dBmakeupgain);
-		mvprintw( 3, 0, "%+1.2f dB compressor threshold (adjust with t/g)", dBcompressorthreshold);
-		mvprintw( 4, 0, "%+1.2f compressor ratio (adjust with r/f)", compressorratio);
+		mvprintw( 2, 0, "%+1.2f dB makeup gain (adjust with UP/DOWN)", makeupGain_dB);
+		mvprintw( 3, 0, "%+1.2f dB compressor threshold (adjust with t/g)", compressorThreshold_dB);
+		mvprintw( 4, 0, "%+1.2f compressor ratio (adjust with r/f)", compressorRatio);
 
 		int keystroke = getch();
 		if (keystroke != ERR) {
 		  switch (keystroke) {
 
 			case KEY_UP:
-			dBmakeupgain += 1.0f;
+			makeupGain_dB += 1.0f;
 			break;
 
 			case KEY_RIGHT:
-			dBmakeupgain += 0.1f;
+			makeupGain_dB += 0.1f;
 			break;
 
 			case KEY_DOWN:
-			dBmakeupgain -= 1.0f;
+			makeupGain_dB -= 1.0f;
 			break;
 
 			case KEY_LEFT:
-			dBmakeupgain -= 0.1f;
+			makeupGain_dB -= 0.1f;
 			break;
 
 			case 't':
-			dBcompressorthreshold += 1.0f;
+			compressorThreshold_dB += 1.0f;
 			break;
 
 			case 'T':
-			dBcompressorthreshold += 0.1f;
+			compressorThreshold_dB += 0.1f;
 			break;
 
 			case 'g':
-			dBcompressorthreshold -= 1.0f;
+			compressorThreshold_dB -= 1.0f;
 			break;
 
 			case 'G':
-			dBcompressorthreshold -= 0.1f;
+			compressorThreshold_dB -= 0.1f;
 			break;
 
 			case 'r':
-			compressorratio += 1.0f;
+			compressorRatio += 1.0f;
 			break;
 
 			case 'R':
-			compressorratio += 0.1f;
+			compressorRatio += 0.1f;
 			break;
 
 			case 'f':
-			compressorratio -= 1.0f;
+			compressorRatio -= 1.0f;
 			break;
 
 			case 'F':
-			compressorratio -= 0.1f;
+			compressorRatio -= 0.1f;
 			break;
 		  }
 		}
 			
-		if (dBmakeupgain > 0.0f)
+		if (makeupGain_dB > 0.0f)
 			mvprintw( 5, 0, " warning: makeup gain exceeds 0 dB...be careful of clipping!\n");
 
 		// calculate linear from 10 ^ (dB/20)
-		linearmakeupgain = pow(10, dBmakeupgain/20.0f);
-		linearcompressorthreshold = pow(10, dBcompressorthreshold/20.0f);
+		makeupGain = pow(10, makeupGain_dB/20.0f);
+		compressorThreshold = pow(10, compressorThreshold_dB/20.0f);
 
 		clrtobot(); // clear rest of screen
 
