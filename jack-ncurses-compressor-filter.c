@@ -1,6 +1,7 @@
 /** @file jack-ncurses-compressor-filter.c
  *
- * @brief Simple compressor & filter with makeup gain by Eric Fontaine (CC0 2020).
+ * @brief Applies IIR averaging filter, chained into dynamic range compressor, chained into final gain.
+ * by Eric Fontaine (CC0 2020).
  * used jackaudio example program simple_client.c as starting point
  */
 
@@ -24,12 +25,16 @@ float makeupGain = 1.0f; // automatically calculated
 float compressorThreshold_dB = 0.0f; // user input in dB
 float compressorThreshold = 1.0f; // user input in dB
 
-float compressorRatio = 1.0f;
+float compressorRatio = 1.0f; // user input
+float compressorRatioReciprocal = 1.0f; // automatically calculated
 
-float maxAmplitudeInput = 0.0f;
-float maxAmplitudeOutput = 0.0f;
+float maxAmplitudeInput = 0.0f; // updates between every screen redraw
+float maxAmplitudeOutput = 0.0f; // updates bewtween every screen redraw
 
-int maxRows, maxCols;
+float lowpassFilterSteepness = 0.0f; // user input
+float averagingAlpha = 1.0f; // automatically calcuated from lowpassFilterSteepness
+
+int maxRows, maxCols; // screen dimensions
 
 static inline float linear_from_dB(float dB) {
 	return powf(10.0f, 0.05f * dB);
@@ -39,11 +44,19 @@ static inline float dB_from_linear(float linear) {
 	return 20.0f * log10f(linear);
 }
 
+float simpleRecursiveAverageInfiniteImpulseResponseFilter(float currentInput)
+{
+	static float runningAverage = 0.0f; // keeps running average
+
+	runningAverage += averagingAlpha * (currentInput - runningAverage);
+	return runningAverage;
+}
+
 float compress(float absoluteValueInput)
 {
 	if (absoluteValueInput > compressorThreshold) {
 		float absoluteValueInput_dB = dB_from_linear(absoluteValueInput);
-		return linear_from_dB(compressorThreshold_dB + (absoluteValueInput_dB - compressorThreshold_dB) / compressorRatio);
+		return linear_from_dB(compressorThreshold_dB + (absoluteValueInput_dB - compressorThreshold_dB) * compressorRatioReciprocal);
 	}
 	else
 		return absoluteValueInput;
@@ -66,14 +79,15 @@ process (jack_nframes_t nframes, void *arg)
 
 	for (i = 0; i < nframes; i++) {
 
-		bool isNegative = in[i] < 0.0f;
+		float absoluteInput = fabs(in[i]);
+		if (absoluteInput > maxAmplitudeInput)
+			maxAmplitudeInput = absoluteInput;
 
-		float absoluteValue = fabs(in[i]);
+		float filterResult = simpleRecursiveAverageInfiniteImpulseResponseFilter(in[i]);
+		float absoluteFilterResult = fabs(filterResult);
+		bool isNegative = (filterResult < 0.0f);
 
-		if (absoluteValue > maxAmplitudeInput)
-			maxAmplitudeInput = absoluteValue;
-
-		float absoluteCompressed = compress(absoluteValue);
+		float absoluteCompressed = compress(absoluteFilterResult);
 		float absoluteCompressedGained = absoluteCompressed * makeupGain;
 
 		if (absoluteCompressedGained > 1.0f)
@@ -219,9 +233,86 @@ main (int argc, char *argv[])
 
 	free (ports);
 
+	int selectedParameterIndex = 3;
+	static const char *parameterNames[4];
+	static float *parameterValuePointers[4];
+	static const char *parameterNumberStringFormat[4];
+
+	parameterNames[0] = "low-pass filter steepness";
+	parameterValuePointers[0] = &lowpassFilterSteepness;
+	parameterNumberStringFormat[0] = " %1.2f ";
+
+	parameterNames[1] = "compressor ratio";
+	parameterValuePointers[1] = &compressorRatio;
+	parameterNumberStringFormat[1] = " %1.2f ";
+
+	parameterNames[2] = "compressor threshold";
+	parameterValuePointers[2] = &compressorThreshold_dB;
+	parameterNumberStringFormat[2] = "%+1.2f dB ";
+
+	parameterNames[3] = "makeup gain";
+	parameterValuePointers[3] = &makeupGain_dB;
+	parameterNumberStringFormat[3] = "%+1.2f dB ";
 
 	/* keep running until stopped by the user */
 	while (true) {
+
+		int keystroke = getch();
+		if (keystroke != ERR) {
+		  switch (keystroke) {
+
+			// select another parameter
+
+			case KEY_UP:
+			if (selectedParameterIndex > 0)
+				selectedParameterIndex--;
+			break;
+
+			case KEY_DOWN:
+			if (selectedParameterIndex < 3)
+				selectedParameterIndex++;
+			break;
+
+			// adjust selected parameter
+
+			case KEY_RIGHT:
+			case '=':
+			*parameterValuePointers[selectedParameterIndex] += 0.1f;
+			break;
+
+			case KEY_SRIGHT:
+			case '+':
+			*parameterValuePointers[selectedParameterIndex] += 0.01f;
+			break;
+
+			case KEY_LEFT:
+			case '-':
+			*parameterValuePointers[selectedParameterIndex] -= 0.1f;
+			break;
+
+			case KEY_SLEFT:			
+			case '_':
+			*parameterValuePointers[selectedParameterIndex] -= 0.01f;
+			break;
+		  }
+		}
+
+		if (compressorRatio < 1.0f)
+			compressorRatio = 1.0f;
+
+		if (lowpassFilterSteepness > 0.99f)
+			lowpassFilterSteepness = 0.99f;
+		else if (lowpassFilterSteepness < 0.0f)
+			lowpassFilterSteepness = 0.0f;
+
+		averagingAlpha = 1.0f - lowpassFilterSteepness;
+
+		// calculate linear from 10 ^ (dB/10)
+		makeupGain = linear_from_dB(makeupGain_dB);
+		compressorThreshold = linear_from_dB(compressorThreshold_dB);
+
+		compressorRatioReciprocal = 1.0f / compressorRatio;
+
 		erase(); // clear screen
 
 		getmaxyx(stdscr, maxRows, maxCols);
@@ -244,77 +335,13 @@ main (int argc, char *argv[])
 			mvprintw(1, col, "|");
 		}
 
-		mvprintw( 2, 0, "%+1.2f dB (%1.3f) makeup gain (adjust with (SHIFT) +/-)", makeupGain_dB, makeupGain);
-		mvprintw( 3, 0, "%+1.2f dB (%1.3f) compressor threshold (adjust with (SHIFT) t/g)", compressorThreshold_dB, compressorThreshold);
-		mvprintw( 4, 0, "%+1.2f compressor ratio (adjust with (SHIFT) r/f)", compressorRatio);
+		mvprintw( 2, 0, " %1.2f low-pass filter steepness (adjust with (SHIFT) e/d)", lowpassFilterSteepness);
+		mvprintw( 3, 0, " %1.2f compressor ratio (adjust with (SHIFT) r/f)", compressorRatio);
+		mvprintw( 4, 0, "%+1.2f dB compressor threshold (adjust with (SHIFT) t/g)", compressorThreshold_dB);
+		mvprintw( 5, 0, "%+1.2f dB makeup gain (adjust with (SHIFT) y/h)", makeupGain_dB);
+		move( selectedParameterIndex + 2, 5); // blinking cursor will be drawn on current selected stage
 
-		int keystroke = getch();
-		if (keystroke != ERR) {
-		  switch (keystroke) {
-
-			case '=':
-			makeupGain_dB += 1.0f;
-			break;
-
-			case '+':
-			makeupGain_dB += 0.1f;
-			break;
-
-			case '-':
-			makeupGain_dB -= 1.0f;
-			break;
-
-			case '_':
-			makeupGain_dB -= 0.1f;
-			break;
-
-			case 't':
-			compressorThreshold_dB += 1.0f;
-			break;
-
-			case 'T':
-			compressorThreshold_dB += 0.1f;
-			break;
-
-			case 'g':
-			compressorThreshold_dB -= 1.0f;
-			break;
-
-			case 'G':
-			compressorThreshold_dB -= 0.1f;
-			break;
-
-			case 'r':
-			compressorRatio += 1.0f;
-			break;
-
-			case 'R':
-			compressorRatio += 0.1f;
-			break;
-
-			case 'f':
-			compressorRatio -= 1.0f;
-			break;
-
-			case 'F':
-			compressorRatio -= 0.1f;
-			break;
-		  }
-		}
-			
-		if (makeupGain_dB > 0.0f)
-			mvprintw( 5, 0, " warning: makeup gain exceeds 0 dB...be careful of clipping!\n");
-
-		if (compressorRatio < 1.0f)
-			compressorRatio = 1.0f;
-
-		// calculate linear from 10 ^ (dB/10)
-		makeupGain = linear_from_dB(makeupGain_dB);
-		compressorThreshold = linear_from_dB(compressorThreshold_dB);
-
-		clrtobot(); // clear rest of screen
-
-		usleep (10000); // sleep in microseconds
+		usleep (16666); // sleep in microseconds so screen updates won't exceed 60 fps
 	}
 
 	/* this is never reached but if the program
