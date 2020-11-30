@@ -21,8 +21,8 @@ jack_client_t *client;
 float makeupGain_dB = 0.0f; // user inputs gain in dB
 float makeupGain = 1.0f; // automatically calculated
 
-float compressorThreshold_dB = -20.0f; // user input in dB
-float compressorThreshold = 0.1f; // automatically calculated
+float compressorThreshold_dB = 0.0f; // user input in dB
+float compressorThreshold = 1.0f; // user input in dB
 
 float compressorRatio = 1.0f;
 
@@ -31,10 +31,20 @@ float maxAmplitudeOutput = 0.0f;
 
 int maxRows, maxCols;
 
+static inline float linear_from_dB(float dB) {
+	return powf(10.0f, 0.05f * dB);
+}
+
+static inline float dB_from_linear(float linear) {
+	return 20.0f * log10f(linear);
+}
+
 float compress(float absoluteValueInput)
 {
-	if (absoluteValueInput > compressorThreshold)
-		return compressorThreshold + (absoluteValueInput - compressorThreshold) / compressorRatio;
+	if (absoluteValueInput > compressorThreshold) {
+		float absoluteValueInput_dB = dB_from_linear(absoluteValueInput);
+		return linear_from_dB(compressorThreshold_dB + (absoluteValueInput_dB - compressorThreshold_dB) / compressorRatio);
+	}
 	else
 		return absoluteValueInput;
 }
@@ -66,6 +76,9 @@ process (jack_nframes_t nframes, void *arg)
 		float absoluteCompressed = compress(absoluteValue);
 		float absoluteCompressedGained = absoluteCompressed * makeupGain;
 
+		if (absoluteCompressedGained > 1.0f)
+			absoluteCompressedGained = 1.0f;
+
 		if (absoluteCompressedGained > maxAmplitudeOutput)
 			maxAmplitudeOutput = absoluteCompressedGained;
 
@@ -79,6 +92,7 @@ process (jack_nframes_t nframes, void *arg)
  * JACK calls this shutdown_callback if the server ever shuts down or
  * decides to disconnect the client.
  */
+
 void
 jack_shutdown (void *arg)
 {
@@ -211,36 +225,46 @@ main (int argc, char *argv[])
 		erase(); // clear screen
 
 		getmaxyx(stdscr, maxRows, maxCols);
+		int barCols = maxCols > 24 ? maxCols - 24 : 0;
 
 		mvprintw( 0, 0, "input amplitude:  %1.4f ", maxAmplitudeInput);
-		printbar( maxAmplitudeInput, maxCols - 24);
+		printbar( maxAmplitudeInput, barCols);
 		maxAmplitudeInput = 0.0f;
+		if (compressorThreshold < 1.0f) {
+			int col = 24 + ((float) compressorThreshold) * barCols;
+			mvprintw(0, col, "|");
+		}
 
 		mvprintw( 1, 0, "output amplitude: %1.4f ", maxAmplitudeOutput);
-		printbar( maxAmplitudeOutput, maxCols - 24);
+		printbar( maxAmplitudeOutput, barCols);
 		maxAmplitudeOutput = 0.0f;
+		float compressorThresholdTimesMakeupGain = compressorThreshold * makeupGain;
+		if (compressorThresholdTimesMakeupGain < 1.0f) {
+			int col = 24 + ((float) compressorThresholdTimesMakeupGain) * barCols;
+			mvprintw(1, col, "|");
+		}
 
-		mvprintw( 2, 0, "%+1.2f dB makeup gain (adjust with UP/DOWN)", makeupGain_dB);
-		mvprintw( 3, 0, "%+1.2f dB compressor threshold (adjust with t/g)", compressorThreshold_dB);
-		mvprintw( 4, 0, "%+1.2f compressor ratio (adjust with r/f)", compressorRatio);
+		mvprintw( 2, 0, "%+1.2f dB (%1.3f) makeup gain (adjust with (SHIFT) +/-)", makeupGain_dB, makeupGain);
+		mvprintw( 3, 0, "%+1.2f dB (%1.3f) compressor threshold (adjust with (SHIFT) t/g)", compressorThreshold_dB, compressorThreshold);
+		mvprintw( 4, 0, "%+1.2f compressor ratio (adjust with (SHIFT) r/f)", compressorRatio);
 
 		int keystroke = getch();
 		if (keystroke != ERR) {
 		  switch (keystroke) {
 
-			case KEY_UP:
+			case '=':
 			makeupGain_dB += 1.0f;
 			break;
 
-			case KEY_RIGHT:
+			case '+':
 			makeupGain_dB += 0.1f;
 			break;
 
-			case KEY_DOWN:
+			case '-':
 			makeupGain_dB -= 1.0f;
 			break;
 
-			case KEY_LEFT:
+			case '_':
 			makeupGain_dB -= 0.1f;
 			break;
 
@@ -281,9 +305,12 @@ main (int argc, char *argv[])
 		if (makeupGain_dB > 0.0f)
 			mvprintw( 5, 0, " warning: makeup gain exceeds 0 dB...be careful of clipping!\n");
 
-		// calculate linear from 10 ^ (dB/20)
-		makeupGain = pow(10, makeupGain_dB/20.0f);
-		compressorThreshold = pow(10, compressorThreshold_dB/20.0f);
+		if (compressorRatio < 1.0f)
+			compressorRatio = 1.0f;
+
+		// calculate linear from 10 ^ (dB/10)
+		makeupGain = linear_from_dB(makeupGain_dB);
+		compressorThreshold = linear_from_dB(compressorThreshold_dB);
 
 		clrtobot(); // clear rest of screen
 
