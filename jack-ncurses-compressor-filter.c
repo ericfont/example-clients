@@ -335,11 +335,14 @@ main (int argc, char *argv[])
 			mvprintw(1, col, "|");
 		}
 
-		mvprintw( 2, 0, " %1.2f low-pass filter steepness (adjust with (SHIFT) e/d)", lowpassFilterSteepness);
-		mvprintw( 3, 0, " %1.2f compressor ratio (adjust with (SHIFT) r/f)", compressorRatio);
-		mvprintw( 4, 0, "%+1.2f dB compressor threshold (adjust with (SHIFT) t/g)", compressorThreshold_dB);
-		mvprintw( 5, 0, "%+1.2f dB makeup gain (adjust with (SHIFT) y/h)", makeupGain_dB);
-		move( selectedParameterIndex + 2, 5); // blinking cursor will be drawn on current selected stage
+		mvprintw( 3, 0, "Parameters:");
+		mvprintw( 4, 0, " %1.2f low-pass filter steepness", lowpassFilterSteepness);
+		mvprintw( 5, 0, " %1.2f compressor ratio", compressorRatio);
+		mvprintw( 6, 0, "%+1.2f dB compressor threshold", compressorThreshold_dB);
+		mvprintw( 7, 0, "%+1.2f dB makeup gain", makeupGain_dB);
+		mvprintw( 9, 0, "Usage: UP/DOWN to select a parameter, and LEFT/RIGHT to modify the selected parameter's value.");
+
+		move( selectedParameterIndex + 4, 5); // blinking cursor will be drawn on current selected stage
 
 		usleep (16666); // sleep in microseconds so screen updates won't exceed 60 fps
 	}
