@@ -138,7 +138,7 @@ main (int argc, char *argv[])
 	cbreak; // only input one character at a time
 	noecho(); // disable echoing of typed keyboard input
 	keypad(stdscr, TRUE); // allow capture of special keystrokes, like arrow keys
-	nodelay(stdscr, TRUE); // make getch() non-blocking (to allow realtime output)
+	timeout(16); // make getch() only block for 16 ms (to allow realtime output 60 fps)
 
 	/* open a client connection to the JACK server */
 
@@ -351,7 +351,6 @@ main (int argc, char *argv[])
 
 		move( selectedParameterIndex + 4, 5); // blinking cursor will be drawn on current selected stage
 
-		usleep (16666); // sleep in microseconds so screen updates won't exceed 60 fps
 	}
 
 	/* this is never reached but if the program
