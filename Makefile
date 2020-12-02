@@ -1,6 +1,6 @@
-jack-ncurses-compressor-filter: jack-ncurses-compressor-filter.c
-	gcc jack-ncurses-compressor-filter.c -o jack-ncurses-compressor-filter -lncurses -lm -ljack
+jack-curses-lowpass-compressor-gain: jack-curses-lowpass-compressor-gain.c
+	gcc jack-curses-lowpass-compressor-gain.c -o jack-curses-lowpass-compressor-gain -lpdcurses -lm -ljack
 
 clean:
-	rm -f jack-ncurses-compressor-filter \
-	      jack-ncurses-compressor-filter.exe
+	rm -f jack-curses-lowpass-compressor-gain \
+	      jack-curses-lowpass-compressor-gain.exe

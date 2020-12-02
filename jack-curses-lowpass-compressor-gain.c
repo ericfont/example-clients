@@ -1,4 +1,4 @@
-/** @file jack-ncurses-compressor-filter.c
+/** @file jack-curses-lowpass-compressor-gain.c
  *
  * @brief Applies IIR averaging filter, chained into dynamic range compressor, chained into final gain.
  * by Eric Fontaine (CC0 2020).
@@ -295,6 +295,11 @@ main (int argc, char *argv[])
 			case '_':
 			*parameterValuePointers[selectedParameterIndex] -= 0.01f;
 			break;
+
+			case 3:
+			case 'q':
+			case 'Q':
+			goto exit;
 		  }
 		}
 
@@ -352,7 +357,7 @@ main (int argc, char *argv[])
 	   had some other way to exit besides being killed,
 	   they would be important to call.
 	*/
-
+exit:
 	jack_client_close (client);
 	exit (0);
 }
