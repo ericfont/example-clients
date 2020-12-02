@@ -1,3 +1,4 @@
 .deps/
 .libs/
-jack-ncurses-compressor-filter
+jack-curses-lowpass-compressor-gain
+jack-curses-lowpass-compressor-gain.exe
