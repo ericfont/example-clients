@@ -364,6 +364,7 @@ main (int argc, char *argv[])
 	   they would be important to call.
 	*/
 exit:
+	endwin();
 	jack_client_close (client);
 	exit (0);
 }
