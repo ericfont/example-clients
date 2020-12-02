@@ -6,6 +6,7 @@
  */
 
 #include <stdio.h>
+#include <inttypes.h>
 #include <errno.h>
 #include <unistd.h>
 #include <stdlib.h>
@@ -137,7 +138,7 @@ main (int argc, char *argv[])
 	cbreak; // only input one character at a time
 	noecho(); // disable echoing of typed keyboard input
 	keypad(stdscr, TRUE); // allow capture of special keystrokes, like arrow keys
-	nodelay(stdscr, true); // make getch() non-blocking (to allow realtime output)
+	nodelay(stdscr, TRUE); // make getch() non-blocking (to allow realtime output)
 
 	/* open a client connection to the JACK server */
 
@@ -255,7 +256,7 @@ main (int argc, char *argv[])
 	parameterNumberStringFormat[3] = "%+1.2f dB ";
 
 	/* keep running until stopped by the user */
-	while (true) {
+	while (TRUE) {
 
 		int keystroke = getch();
 		if (keystroke != ERR) {

@@ -1,5 +1,6 @@
 jack-ncurses-compressor-filter: jack-ncurses-compressor-filter.c
-	gcc -o jack-ncurses-compressor-filter `pkg-config --cflags --libs jack` -lncurses -lm jack-ncurses-compressor-filter.c
+	gcc jack-ncurses-compressor-filter.c -o jack-ncurses-compressor-filter -lncurses -lm -ljack
 
 clean:
-	rm -f jack-ncurses-compressor-filter
+	rm -f jack-ncurses-compressor-filter \
+	      jack-ncurses-compressor-filter.exe
