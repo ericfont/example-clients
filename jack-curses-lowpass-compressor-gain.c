@@ -241,11 +241,11 @@ main (int argc, char *argv[])
 
 	parameterNames[0] = "low-pass filter steepness";
 	parameterValuePointers[0] = &lowpassFilterSteepness;
-	parameterNumberStringFormat[0] = " %1.2f ";
+	parameterNumberStringFormat[0] = " %1.2f    ";
 
 	parameterNames[1] = "compressor ratio";
 	parameterValuePointers[1] = &compressorRatio;
-	parameterNumberStringFormat[1] = " %1.2f ";
+	parameterNumberStringFormat[1] = " %1.2f    ";
 
 	parameterNames[2] = "compressor threshold";
 	parameterValuePointers[2] = &compressorThreshold_dB;
@@ -343,13 +343,19 @@ main (int argc, char *argv[])
 		}
 
 		mvprintw( 3, 0, "Parameters:");
-		mvprintw( 4, 0, " %1.2f low-pass filter steepness", lowpassFilterSteepness);
-		mvprintw( 5, 0, " %1.2f compressor ratio", compressorRatio);
-		mvprintw( 6, 0, "%+1.2f dB compressor threshold", compressorThreshold_dB);
-		mvprintw( 7, 0, "%+1.2f dB makeup gain", makeupGain_dB);
-		mvprintw( 9, 0, "Usage: UP/DOWN to select a parameter, and LEFT/RIGHT to modify the selected parameter's value. Exit with Q.");
 
-		move( selectedParameterIndex + 4, 5); // blinking cursor will be drawn on current selected stage
+
+		for (int i=0; i<4; i++) {
+			if (selectedParameterIndex == i)
+				attron(A_REVERSE);
+
+			mvprintw( i+4, 0, parameterNumberStringFormat[i], *parameterValuePointers[i]);
+			attroff(A_REVERSE);
+
+			printw( parameterNames[i] );
+		}
+
+		mvprintw( 9, 0, "Usage: UP/DOWN to select a parameter, and LEFT/RIGHT to modify the selected parameter's value. Exit with Q.");
 
 	}
 
